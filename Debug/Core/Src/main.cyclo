@@ -1,0 +1,6 @@
+../Core/Src/main.c:71:6:process_USB_data	4
+../Core/Src/main.c:92:5:main	1
+../Core/Src/main.c:144:6:SystemClock_Config	3
+../Core/Src/main.c:191:13:MX_SPI1_Init	2
+../Core/Src/main.c:229:13:MX_GPIO_Init	1
+../Core/Src/main.c:273:6:Error_Handler	1
