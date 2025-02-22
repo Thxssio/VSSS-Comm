@@ -118,7 +118,7 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
   NRF24_Init();
-  NRF24_TxMode(TxAddress, 76);
+  NRF24_TxMode(TxAddress, 86);
   CDC_Transmit_FS((uint8_t *)"USB Ready\n", 10);
 
 
