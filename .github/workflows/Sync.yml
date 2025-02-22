@@ -18,7 +18,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git remote add upstream https://github.com/Thxssio/VSSS_COMM.git
+          git remote add upstream https://github.com/Thxssio/VSSS-Comm.git
           git fetch upstream
           git checkout main
           git reset --hard upstream/main 
