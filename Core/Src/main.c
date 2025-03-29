@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "nrf24l01p.h"
-#include "aes.h"
+//#include "aes.h"
 
 
 /* USER CODE END Includes */
@@ -39,8 +39,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define AES_KEY_SIZE 16
-#define AES_BLOCK_SIZE 16
+//#define AES_KEY_SIZE 16
+//#define AES_BLOCK_SIZE 16
 #define MAX_INPUT_SIZE 64
 /* USER CODE END PD */
 
@@ -57,17 +57,17 @@ uint8_t TxAddress[] = {0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
 uint8_t *recData = NULL;
 uint32_t recDataSize = 0;
 
-static const uint8_t aes_key[AES_KEY_SIZE] = {
-    0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
-    0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
-};
+//static const uint8_t aes_key[AES_KEY_SIZE] = {
+//    0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
+//    0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
+//};
+//
+//static uint8_t iv[AES_BLOCK_SIZE] = {
+//    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+//    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+//};
 
-static uint8_t iv[AES_BLOCK_SIZE] = {
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
-};
-
-struct AES_ctx ctx;
+//struct AES_ctx ctx;
 
 /* USER CODE END PV */
 
@@ -85,22 +85,43 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 /* USER CODE BEGIN 0 */
 
 
+//void process_USB_data(void) {
+//    if (recData != NULL && recDataSize > 0) {
+//
+//        size_t msg_len = recDataSize;
+//        size_t padded_len = ((msg_len + AES_BLOCK_SIZE - 1) / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+//
+//        uint8_t buffer[padded_len];
+//        memset(buffer, AES_BLOCK_SIZE - (msg_len % AES_BLOCK_SIZE), padded_len);
+//        memcpy(buffer, recData, msg_len);
+//
+//        AES_ctx_set_iv(&ctx, iv);
+//        AES_CBC_encrypt_buffer(&ctx, buffer, padded_len);
+//
+//        uint8_t tx_data[padded_len + 1];
+//        tx_data[0] = (uint8_t)msg_len;
+//        memcpy(&tx_data[1], buffer, padded_len);
+//
+//        if (NRF24_Transmit(tx_data)) {
+//            CDC_Transmit_FS((uint8_t *)"Data Sent Successfully\r\n", 25);
+//        } else {
+//            CDC_Transmit_FS((uint8_t *)"Data Transmission Failed\r\n", 27);
+//        }
+//
+//        free(recData);
+//        recData = NULL;
+//        recDataSize = 0;
+//    }
+//}
+
 void process_USB_data(void) {
     if (recData != NULL && recDataSize > 0) {
 
-        size_t msg_len = recDataSize;
-        size_t padded_len = ((msg_len + AES_BLOCK_SIZE - 1) / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+        if (recDataSize > 32) recDataSize = 32;
 
-        uint8_t buffer[padded_len];
-        memset(buffer, AES_BLOCK_SIZE - (msg_len % AES_BLOCK_SIZE), padded_len);
-        memcpy(buffer, recData, msg_len);
-
-        AES_ctx_set_iv(&ctx, iv);
-        AES_CBC_encrypt_buffer(&ctx, buffer, padded_len);
-
-        uint8_t tx_data[padded_len + 1];
-        tx_data[0] = (uint8_t)msg_len;
-        memcpy(&tx_data[1], buffer, padded_len);
+        uint8_t tx_data[recDataSize + 1];
+        tx_data[0] = (uint8_t)recDataSize;
+        memcpy(&tx_data[1], recData, recDataSize);
 
         if (NRF24_Transmit(tx_data)) {
             CDC_Transmit_FS((uint8_t *)"Data Sent Successfully\r\n", 25);
@@ -150,7 +171,7 @@ int main(void)
   MX_SPI1_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-  AES_init_ctx_iv(&ctx, aes_key, iv);
+//  AES_init_ctx_iv(&ctx, aes_key, iv);
   NRF24_Init();
   uint8_t tx_address[5] = {0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
   NRF24_TxMode(tx_address, 125);
