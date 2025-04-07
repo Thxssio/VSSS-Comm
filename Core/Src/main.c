@@ -188,11 +188,7 @@ int main(void)
   while (1)
   {
 	  process_USB_data();
-	  static uint32_t lastReport = 0;
-	  if (HAL_GetTick() - lastReport >= 1000) {
-		  NRF24_ReportStatus_USB();
-	        lastReport = HAL_GetTick();
-	    }
+	  NRF24_ReportStatus_USB();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

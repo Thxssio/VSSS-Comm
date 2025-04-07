@@ -1,3 +1,3 @@
-../Core/Src/NRF24_Diagnostics.c:8:6:NRF24_UpdateLinkStatus	2
-../Core/Src/NRF24_Diagnostics.c:22:18:NRF24_GetLinkStatus	1
-../Core/Src/NRF24_Diagnostics.c:26:6:NRF24_ReportStatus_USB	1
+../Core/Src/NRF24_Diagnostics.c:12:6:NRF24_UpdateLinkStatus	6
+../Core/Src/NRF24_Diagnostics.c:40:18:NRF24_GetLinkStatus	1
+../Core/Src/NRF24_Diagnostics.c:44:6:NRF24_ReportStatus_USB	2
