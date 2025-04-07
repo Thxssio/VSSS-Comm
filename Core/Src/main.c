@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "nrf24l01p.h"
+#include "NRF24_Diagnostics.h"
+
 //#include "aes.h"
 
 
@@ -123,7 +125,7 @@ void process_USB_data(void) {
         tx_data[0] = (uint8_t)recDataSize;
         memcpy(&tx_data[1], recData, recDataSize);
 
-        if (NRF24_Transmit(tx_data)) {
+        if (NRF24_Transmit(tx_data, recDataSize + 1)) {
             CDC_Transmit_FS((uint8_t *)"Data Sent Successfully\r\n", 25);
         } else {
             CDC_Transmit_FS((uint8_t *)"Data Transmission Failed\r\n", 27);
@@ -186,6 +188,11 @@ int main(void)
   while (1)
   {
 	  process_USB_data();
+	  static uint32_t lastReport = 0;
+	  if (HAL_GetTick() - lastReport >= 1000) {
+		  NRF24_ReportStatus_USB();
+	        lastReport = HAL_GetTick();
+	    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

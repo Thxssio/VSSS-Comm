@@ -21,6 +21,8 @@
 
 #include "stm32f4xx_hal.h"
 #include "nrf24l01p.h"
+#include <stdio.h>
+
 
 extern SPI_HandleTypeDef hspi1;
 #define NRF24_SPI &hspi1
@@ -30,6 +32,43 @@ extern SPI_HandleTypeDef hspi1;
 
 #define NRF24_CSN_PORT   GPIOB
 #define NRF24_CSN_PIN    GPIO_PIN_0
+#define NRF24_MAX_RETRANSMISSIONS 15
+
+
+// Retorna o status da conexão (RSSI, retransmissões, etc.)
+uint8_t NRF24_GetStatus(void) {
+    return nrf24_ReadReg(STATUS);
+}
+
+// Mede a qualidade do sinal (RPD)
+int8_t NRF24_GetRSSI(void) {
+    uint8_t rpd = nrf24_ReadReg(RPD);
+    return (rpd & 0x01) ? -64 : -82; // -64 dBm (bom), -82 dBm (ruim)
+}
+
+// Contagem de retransmissões
+uint8_t NRF24_GetRetransmits(void) {
+    uint8_t observe_tx = nrf24_ReadReg(OBSERVE_TX);
+    return (observe_tx & 0x0F); // Bits 0-3: retransmissões
+}
+
+float NRF24_GetLinkQuality(void) {
+    uint8_t r = NRF24_GetRetransmits();
+    return 1.0f - ((float)r / NRF24_MAX_RETRANSMISSIONS);
+}
+
+void NRF24_DebugLinkStatus(void) {
+    uint8_t rtx = NRF24_GetRetransmits();
+    float quality = NRF24_GetLinkQuality();
+    int8_t rssi = NRF24_GetRSSI();
+
+    printf("========================\n");
+    printf("Retransmissões: %d\n", rtx);
+    printf("Qualidade do link: %.2f%% %s\n", quality * 100, quality > 0.7f ? "✅" : "⚠️");
+    printf("RSSI aproximado: %d dBm %s\n", rssi, rssi > -70 ? "📶" : "🔻");
+    printf("========================\n");
+}
+
 
 
 void CS_Select (void)
@@ -136,7 +175,7 @@ void nrf24_reset(uint8_t REG)
 {
 	if (REG == STATUS)
 	{
-		nrf24_WriteReg(STATUS, 0x00);
+		nrf24_WriteReg(STATUS, (1 << 6) | (1 << 5) | (1 << 4));
 	}
 
 	else if (REG == FIFO_STATUS)
@@ -146,12 +185,12 @@ void nrf24_reset(uint8_t REG)
 
 	else {
 	nrf24_WriteReg(CONFIG, 0x08);
-	nrf24_WriteReg(EN_AA, 0x3F);
+	nrf24_WriteReg(EN_AA, 0x3F); // Enable all the data pipes
 	nrf24_WriteReg(EN_RXADDR, 0x03);
 	nrf24_WriteReg(SETUP_AW, 0x03);
-	nrf24_WriteReg(SETUP_RETR, 0x03);
+	nrf24_WriteReg(SETUP_RETR, 0x03); // 0x3F = 4000us delay, 15 retransmission
 	nrf24_WriteReg(RF_CH, 0x02);
-	nrf24_WriteReg(RF_SETUP, 0x0E);
+	nrf24_WriteReg(RF_SETUP, 0x0E); // 0x0E = 2Mbps ||  0x06 = 1Mbps
 	nrf24_WriteReg(STATUS, 0x00);
 	nrf24_WriteReg(OBSERVE_TX, 0x00);
 	nrf24_WriteReg(CD, 0x00);
@@ -174,100 +213,88 @@ void nrf24_reset(uint8_t REG)
 	nrf24_WriteReg(FIFO_STATUS, 0x11);
 	nrf24_WriteReg(DYNPD, 0);
 	nrf24_WriteReg(FEATURE, 0);
+
 	}
 }
 
 
 
 
-void NRF24_Init (void)
-{
-	// disable the chip before configuring the device
-	CE_Disable();
+void NRF24_Init(void) {
+    CE_Disable();
+    nrf24_reset(0);
 
+    // Habilita CRC de 16 bits (CONFIG: EN_CRC=1, CRCO=1)
+    nrf24_WriteReg(CONFIG, (1 << 2) | (1 << 3));
 
-	// reset everything
-	nrf24_reset (0);
+    // Auto-ACK em todos os pipes (EN_AA=0x3F)
+    nrf24_WriteReg(EN_AA, 0x3F);
 
-	nrf24_WriteReg(CONFIG, 0);  // will be configured later
+    // Taxa de dados: 250Kbps (RF_SETUP=0x26)
+    nrf24_WriteReg(RF_SETUP, 0x26);
 
-	nrf24_WriteReg(EN_AA, 0);  // No Auto ACK
+    // 15 retransmissões, delay 4000µs (SETUP_RETR=0x4F)
+    nrf24_WriteReg(SETUP_RETR, 0x4F);
 
-	nrf24_WriteReg (EN_RXADDR, 0);  // Not Enabling any data pipe right now
+    // Habilita Dynamic Payloads (FEATURE=0x06)
+    nrf24_WriteReg(FEATURE, 0x06);
+    nrf24_WriteReg(DYNPD, 0x3F); // Ativa em todos os pipes
 
-	nrf24_WriteReg (SETUP_AW, 0x03);  // 5 Bytes for the TX/RX address
-
-	nrf24_WriteReg (SETUP_RETR, 0);   // No retransmission
-
-	nrf24_WriteReg (RF_CH, 0);  // will be setup during Tx or RX
-
-	nrf24_WriteReg (RF_SETUP, 0x0E);   // 0x0E = 2Mbps, Power= 0db, data rate = 2Mbps || 0x06 = 1Mbps
-
-	// Enable the chip after configuring the device
-	CE_Enable();
-
+    CE_Enable();
 }
-
 
 // set up the Tx mode
 
-void NRF24_TxMode (uint8_t *Address, uint8_t channel)
-{
-	// disable the chip before configuring the device
-	CE_Disable();
+void NRF24_TxMode(uint8_t *Address, uint8_t channel) {
+    CE_Disable();
+    nrf24_WriteReg(RF_CH, channel);
 
-	nrf24_WriteReg (RF_CH, channel);  // select the channel
+    // Define endereço TX e RX (para receber ACKs)
+    nrf24_WriteRegMulti(TX_ADDR, Address, 5);
+    nrf24_WriteRegMulti(RX_ADDR_P0, Address, 5); // Pipe 0 para ACKs
 
-	nrf24_WriteRegMulti(TX_ADDR, Address, 5);  // Write the TX address
+    // Configuração final (PWR_UP=1, PRIM_RX=0)
+    uint8_t config = nrf24_ReadReg(CONFIG);
+    config |= (1 << 1); // PWR_UP
+    config &= ~(1 << 0); // Modo TX
+    nrf24_WriteReg(CONFIG, config);
 
-
-	// power up the device
-	uint8_t config = nrf24_ReadReg(CONFIG);
-	config = config | (1<<1);   // write 1 in the PWR_UP bit
-//	config = config & (0xF2);    // write 0 in the PRIM_RX, and 1 in the PWR_UP, and all other bits are masked
-	nrf24_WriteReg (CONFIG, config);
-
-	// Enable the chip after configuring the device
-	CE_Enable();
+    CE_Enable();
+    HAL_Delay(5); // Tempo para estabilização
 }
 
 
 // transmit the data
 
-uint8_t NRF24_Transmit (uint8_t *data)
-{
-	uint8_t cmdtosend = 0;
+uint8_t NRF24_Transmit(uint8_t *data, uint8_t size) {
+    CS_Select();
 
-	// select the device
-	CS_Select();
+    // Envia comando de payload dinâmico
+    uint8_t cmd = W_TX_PAYLOAD;
+    HAL_SPI_Transmit(NRF24_SPI, &cmd, 1, 100);
 
-	// payload command
-	cmdtosend = W_TX_PAYLOAD;
-	HAL_SPI_Transmit(NRF24_SPI, &cmdtosend, 1, 100);
+    // Envia dados (tamanho variável)
+    HAL_SPI_Transmit(NRF24_SPI, data, size, 1000);
 
-	// send the payload
-	HAL_SPI_Transmit(NRF24_SPI, data, 32, 1000);
+    CS_UnSelect();
 
-	// Unselect the device
-	CS_UnSelect();
+    // Aguarda conclusão (máximo 10ms)
+    uint32_t start = HAL_GetTick();
+    while ((nrf24_ReadReg(STATUS) & (1 << 5)) == 0) { // Espera TX_DS
+        if (HAL_GetTick() - start > 10) break;
+    }
 
-	HAL_Delay(1);
+    // Verifica sucesso
+    uint8_t status = nrf24_ReadReg(STATUS);
+    nrf24_WriteReg(STATUS, (1 << 5) | (1 << 4)); // Limpa TX_DS/MAX_RT
 
-	uint8_t fifostatus = nrf24_ReadReg(FIFO_STATUS);
-
-	// check the fourth bit of FIFO_STATUS to know if the TX fifo is empty
-	if ((fifostatus&(1<<4)) && (!(fifostatus&(1<<3))))
-	{
-		cmdtosend = FLUSH_TX;
-		nrfsendCmd(cmdtosend);
-
-		// reset FIFO_STATUS
-		nrf24_reset (FIFO_STATUS);
-
-		return 1;
-	}
-
-	return 0;
+    if (status & (1 << 5)) { // TX_DS: Sucesso
+        return 1;
+    } else if (status & (1 << 4)) { // MAX_RT: Falha
+        nrfsendCmd(FLUSH_TX);
+        return 0;
+    }
+    return 0;
 }
 
 
@@ -377,10 +404,4 @@ void NRF24_ReadAll (uint8_t *data)
 	}
 
 }
-
-
-
-
-
-
 
